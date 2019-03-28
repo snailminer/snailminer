@@ -16,6 +16,23 @@ SKIP_CYCLE_LEN = 2048
 OFF_STATR = 12
 
 
+class DataArray(object):
+
+    def __init__(self, data, start=None):
+        self.data = data
+        self.capacity = len(self.data)
+        if start is not None:
+            self.start = start
+        else:
+            self.start = 0
+
+    def slice(self, start=None, stop=None):
+        return self.__class__(self.data, self.start+start)
+
+    def __getitem__(self, i):
+        return self.data[self.start+i]
+
+
 def xor64(val):
     r = 0
     for _ in range(64):
@@ -35,13 +52,16 @@ def multiple(input, prow):
 
 
 def mat_multiple(input, output, pmat):
-    prow = pmat[:]
+    prow = pmat
     point = 0
 
     for k in range(2048):
+
         kI = k // 64
         kR = k % 64
-        temp = multiple(input, prow[point:])
+#       tab = prow[point:]
+        tab = prow.slice(point)
+        temp = multiple(input, tab)
 
         output[kI] |= (temp << kR)
         point += 32
@@ -79,7 +99,8 @@ def scramble(permute_in, dataset):
         sf = permute_in[0] & 0x7f
         bs = permute_in[31] >> 60
 
-        ptbl = dataset[bs*2048*32:]
+#       ptbl = dataset[bs*2048*32:]
+        ptbl = dataset.slice(bs*2048*32)
 
         mat_multiple(permute_in, permute_out, ptbl)
         shift2048(permute_out, sf)
@@ -746,6 +767,8 @@ TABLE_ORG = (
 
 
 if __name__ == '__main__':
+    # sha3_256(b'') =  a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a
     tab = table_init()
-    digest = fruit_hash(tab, sha3_256(b'').digest(), 0)
-    print(digest)
+    digest = fruit_hash(DataArray(tab), sha3_256(b'').digest(), 0)
+    # fruit hash = c86eb01892dbe6419d3d476407c0d932302996380478e792884a6fbccfe69cf8
+    print(digest.hex())
