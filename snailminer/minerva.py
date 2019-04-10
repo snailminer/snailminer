@@ -3,7 +3,7 @@ from hashlib import (
     sha3_256
 )
 
-from dataset import TABLE_ORG
+from .dataset import TABLE_ORG
 
 DATALENGTH = 2048
 PMTSIZE = 4
@@ -202,13 +202,4 @@ def table_init():
             plkt += lktWz
 
     return lookup
-
-
-if __name__ == '__main__':
-    # sha3_256(b'') =  a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a
-    tab = table_init()
-    digest = fruit_hash(DataArray(tab), sha3_256(b'').digest(), 0)
-    # fruit hash = c86eb01892dbe6419d3d476407c0d932302996380478e792884a6fbccfe69cf8
-    if digest.hex() == 'c86eb01892dbe6419d3d476407c0d932302996380478e792884a6fbccfe69cf8':
-        print('OK for hash of nonce 0: %s' % digest.hex())
 
