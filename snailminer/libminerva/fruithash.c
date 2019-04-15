@@ -228,77 +228,78 @@ int byteReverse(uint8_t sha512_out[64])
 
 void fchainhash(uint64_t dataset[], uint8_t mining_hash[DGST_SIZE], uint64_t nonce, uint8_t digs[DGST_SIZE])
 {
-        uint8_t seed[64] = { 0 };
-        uint8_t output[DGST_SIZE] = { 0 };
+    uint8_t seed[64] = { 0 };
+    uint8_t output[DGST_SIZE] = { 0 };
 
-        uint32_t val0 = (uint32_t)(nonce & 0xFFFFFFFF);
-        uint32_t val1 = (uint32_t)(nonce >> 32);
-        for (int k = 3; k >= 0; k--)
+    uint32_t val0 = (uint32_t)(nonce & 0xFFFFFFFF);
+    uint32_t val1 = (uint32_t)(nonce >> 32);
+    for (int k = 3; k >= 0; k--)
+    {
+        seed[k] = val0 & 0xFF;
+        val0 >>= 8;
+    }
+
+    for (int k = 7; k >= 4; k--)
+    {
+        seed[k] = val1 & 0xFF;
+        val1 >>= 8;
+    }
+
+    for (int k = 0; k < HEAD_SIZE; k++)
+    {
+        seed[k+8] = mining_hash[k];
+    }
+
+    uint8_t sha512_out[64];
+    sha3(seed, 64, sha512_out, 64);
+    byteReverse(sha512_out);
+    uint64_t permute_in[32] = { 0 };
+    for (int k = 0; k < 8; k++)
+    {
+        for (int x = 0; x < 8; x++)
         {
-                seed[k] = val0 & 0xFF;
-                val0 >>= 8;
+            int sft = x * 8;
+            uint64_t val = ((uint64_t)sha512_out[k*8+x] << sft);
+            permute_in[k] += val;
         }
+    }
 
-        for (int k = 7; k >= 4; k--)
+    for (int k = 1; k < 4; k++)
+    {
+        for (int x = 0; x < 8; x++)
+                permute_in[k * 8 + x] = permute_in[x];
+    }
+
+    scramble(permute_in, dataset);
+
+    uint8_t dat_in[256];
+    for (int k = 0; k < 32; k++)
+    {
+        uint64_t val = permute_in[k];
+        for (int x = 0; x < 8; x++)
         {
-                seed[k] = val1 & 0xFF;
-                val1 >>= 8;
+                dat_in[k * 8 + x] = val & 0xFF;
+                val = val >> 8;
         }
+    }
 
-        for (int k = 0; k < HEAD_SIZE; k++)
-        {
-                seed[k+8] = mining_hash[k];
-        }
+    for (int k = 0; k < 64; k++)
+    {
+        uint8_t temp;
+        temp = dat_in[k * 4];
+        dat_in[k * 4] = dat_in[k * 4 + 3];
+        dat_in[k * 4 + 3] = temp;
+        temp = dat_in[k * 4 + 1];
+        dat_in[k * 4 + 1] = dat_in[k * 4 + 2];
+        dat_in[k * 4 + 2] = temp;
+    }
 
-        uint8_t sha512_out[64];
-        sha3(seed, 64, sha512_out, 64);
-        byteReverse(sha512_out);
-        uint64_t permute_in[32] = { 0 };
-        for (int k = 0; k < 8; k++)
-        {
-                for (int x = 0; x < 8; x++)
-                {
-                        int sft = x * 8;
-                        uint64_t val = ((uint64_t)sha512_out[k*8+x] << sft);
-                        permute_in[k] += val;
-                }
-        }
-
-        for (int k = 1; k < 4; k++)
-        {
-                for (int x = 0; x < 8; x++)
-                        permute_in[k * 8 + x] = permute_in[x];
-        }
-
-        scramble(permute_in, dataset);
-
-        uint8_t dat_in[256];
-        for (int k = 0; k < 32; k++)
-        {
-                uint64_t val = permute_in[k];
-                for (int x = 0; x < 8; x++)
-                {
-                        dat_in[k * 8 + x] = val & 0xFF;
-                        val = val >> 8;
-                }
-        }
-
-        for (int k = 0; k < 64; k++)
-        {
-                uint8_t temp;
-                temp = dat_in[k * 4];
-                dat_in[k * 4] = dat_in[k * 4 + 3];
-                dat_in[k * 4 + 3] = temp;
-                temp = dat_in[k * 4 + 1];
-                dat_in[k * 4 + 1] = dat_in[k * 4 + 2];
-                dat_in[k * 4 + 2] = temp;
-        }
-
-        //unsigned char output[64];
-        sha3(dat_in, 256, output, 32);
-        // reverse byte
-        for (int k = 0; k < DGST_SIZE; k++)
-        {
-                digs[k] = output[DGST_SIZE - k - 1];
-        }
+    //unsigned char output[64];
+    sha3(dat_in, 256, output, 32);
+    // reverse byte
+    for (int k = 0; k < DGST_SIZE; k++)
+    {
+//      digs[k] = output[DGST_SIZE - k - 1];
+        digs[k] = output[k];
+    }
 }
