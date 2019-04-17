@@ -18,7 +18,7 @@ def initialize():
     assert len(platforms) > 0, 'No OpenCL platforms support'
 
     platforms = cl.get_platforms()
-    devices = platforms[0].get_devices(cl.device_type.CPU)
+    devices = platforms[0].get_devices(cl.device_type.GPU)
 
     if devices:
         print('OpenCL devices:')
