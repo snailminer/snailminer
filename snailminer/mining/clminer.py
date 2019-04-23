@@ -33,12 +33,13 @@ def initialize():
 
 class OpenCLMiner(Miner):
 
-    def __init__(self, work_queue=None):
+    def __init__(self, work_queue=None, result_queue=None):
         super(OpenCLMiner, self).__init__(None, {})
         self.defines = ''
         self.device = initialize()[0]
         self.device_name = self.device.name.strip('\r\n \x00\t')
         self.work_queue = work_queue
+        self.result_queue = result_queue
         self.current = None
         LOG.debug('device name: %s' % self.device_name)
 
@@ -53,7 +54,7 @@ class OpenCLMiner(Miner):
         self.worksize = self.kernel.get_work_group_info(cl.kernel_work_group_info.WORK_GROUP_SIZE, self.device)
         LOG.debug('worksize %s' % self.worksize)
 
-        self.worksize = 1
+        self.worksize = 128
 
     def mining_thread(self):
         self.load_kernel()
@@ -102,14 +103,14 @@ class OpenCLMiner(Miner):
                 if work is None:
                     # receive exit msg, abort the mining routine
                     break
-                self.current = work['header']
+                self.current = work.copy()
                 LOG.info("Fetch work %s", work)
 
                 # mining header hash of 32 bytes
                 header = numpy.fromstring(bytes.fromhex(work['header'][2:]), dtype=numpy.uint8)
                 header_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=header)
                 # 16 bytes boundary for block diffculty
-                target = numpy.fromstring(work['target'].to_bytes(16, 'big'), numpy.uint8)
+                target = numpy.fromstring(work['fruit_target'].to_bytes(16, 'big'), numpy.uint8)
                 target_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=target)
                 # output nonce
                 output = numpy.zeros(2, numpy.uint64)
@@ -130,11 +131,15 @@ class OpenCLMiner(Miner):
             cl.enqueue_copy(queue, digest, digest_buf)
             cl.enqueue_copy(queue, count, count_buf)
 
-            LOG.debug("start:%s, nonce: %s, digest:%s, count:%s" % (start_nonce, output[0], digest, count))
+            LOG.debug("start:%s, nonce: %s, digest:%s, count:%s" % (start_nonce, output[0], digest[:32], count))
             if count > 0:
                 LOG.info("search found nonce=%s", output[0])
+                # result just containing work package detail
+                result = self.current
+                result['digest'] = '0x' + digest[:32].tobytes().hex()
+                result['found_nonce'] = output[0]
+                self.result_queue.put(result)
                 self.current = None
 
             start_nonce += self.worksize
-            time.sleep(1)
 

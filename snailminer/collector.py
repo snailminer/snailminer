@@ -1,3 +1,4 @@
+import logging
 from queue import Queue
 
 from tornado import (
@@ -8,23 +9,27 @@ from tornado import (
 from snailminer.getwork import Getwork
 from snailminer.mining.clminer import OpenCLMiner
 
+LOG = logging.getLogger(__name__)
+
 class Collector(object):
 
-    def __init__(self, endpoint, miners=None, work_queue=None):
+    def __init__(self, endpoint, miners=None, work_queue=None, result_queue=None):
         self.endpoint = endpoint
         self.miners = miners
         self.work_queue = work_queue
         self.getwork = Getwork(endpoint=endpoint,
-                               collector=self)
+                               collector=self,
+                               result_queue=result_queue)
 
     def enqueue_work(self, work):
-        print("enqueue work :%s" % work)
+        LOG.info("enqueue work :%s", work)
         self.work_queue.put(work)
 
     async def run(self):
         while True:
+            await self.getwork.commit_result()
             await self.getwork.request()
-            await gen.sleep(3)
+            await gen.sleep(2)
 
     def stop(self):
         self.work_queue.put(None)
@@ -32,10 +37,11 @@ class Collector(object):
 
 def run():
     work_queue = Queue()
-    m = OpenCLMiner(work_queue)
+    result_queue = Queue()
+    m = OpenCLMiner(work_queue, result_queue)
     m.start()
 
-    pool = Collector('http://localhost:8545', work_queue=work_queue)
+    pool = Collector('http://localhost:8545', work_queue=work_queue, result_queue=result_queue)
     io_loop = ioloop.IOLoop.current()
     try:
         io_loop.add_callback(pool.run)

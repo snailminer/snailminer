@@ -1,9 +1,13 @@
 import json
+import logging
 import random
 
 from tornado import gen
 from tornado.httpclient import AsyncHTTPClient as HTTPClient
 from tornado.httpclient import HTTPClientError
+
+LOG = logging.getLogger(__name__)
+
 
 class Getwork(object):
 
@@ -21,6 +25,33 @@ class Getwork(object):
             await self.request()
             await gen.sleep(3)
 
+    async def commit_result(self):
+        if not self.result_queue.empty():
+            result = self.result_queue.get()
+            headers = {
+                "Content-Type": "application/json",
+            }
+            body = {
+                "jsonrpc":"2.0",
+                "method":"etrue_submitWork",
+                "params":[hex(result['found_nonce']), result['header'], result['digest']],
+                "id":0
+            }
+            try:
+                response = await self.http_client.fetch(self.endpoint,
+                                                        raise_error=False,
+                                                        headers=headers,
+                                                        method='POST',
+                                                        body=json.dumps(body))
+                if response.code == 200:
+                    resp = json.loads(response.body).get('result')
+                    LOG.info('commit result %s', resp)
+                else:
+                    LOG.error('http response error %s' % response.code)
+            except Exception as e:
+                LOG.error('http error %s' % e)
+            self.current_work = {}
+
     async def request(self):
         headers = {
             "Content-Type": "application/json",
@@ -33,16 +64,19 @@ class Getwork(object):
                                                     method='POST',
                                                     body=json.dumps(body))
             if response.code == 200:
-                self.getwork(json.loads(response.body).get('result', []))
+                resp = json.loads(response.body)
+                self.getwork(resp.get('result', []))
             else:
-                print('http response error %s' % response.code)
+                LOG.error('http response error %s' % response.code)
         except Exception as e:
-            print('http error %s' % e)
+            LOG.error('http error %s' % e)
 
     def getwork(self, result):
         """
         Getwork from rpc endpoint, including header, seed, and target.
         """
+        if len(result) != 4:
+            LOG.debug('getwork result empty')
         work = {}
         work['header'] = result[0]
         work['fruit_target'] = 2 ** 128 // int(result[2], 0)

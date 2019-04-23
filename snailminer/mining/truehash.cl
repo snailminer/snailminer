@@ -431,9 +431,8 @@ __kernel void search(
 
     fchainhash((uint64_t *)g_dataset, (uint8_t *)header, start_nonce, digs);
 
-
-    // debug digest
 #if 0
+    // debug digest
     atomic_inc(count);
     for (int i = 0; i < DGST_SIZE; i++) {
         digest[i] = digs[i];
