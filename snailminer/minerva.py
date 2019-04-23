@@ -3,7 +3,7 @@ from hashlib import (
     sha3_256
 )
 
-from dataset import TABLE_ORG
+from .dataset import TABLE_ORG
 import numpy as np
 
 DATALENGTH = 2048

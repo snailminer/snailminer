@@ -419,11 +419,40 @@ __kernel void search(
     __global uchar *target,
     ulong start_nonce,
     __global ulong *nonce,
-    __global uchar *digest
+    __global uchar *digest,
+    __global uint *count
 )
 {
-//  uint8_t digs[DGST_SIZE];
-    uint8 *digs = digest;
+    uint8_t digs[DGST_SIZE] = {0};
+//  uint8 *digs = digest;
+    const uint gid = get_global_id(0);
+    start_nonce += gid;
+    int k;
+
     fchainhash((uint64_t *)g_dataset, (uint8_t *)header, start_nonce, digs);
+
+
+    // debug digest
+#if 0
+    atomic_inc(count);
+    for (int i = 0; i < DGST_SIZE; i++) {
+        digest[i] = digs[i];
+    }
+#endif
+
+    for (k=0; k < TARG_SIZE; k++) {
+        if (digs[k] > target[k]) {
+            break;
+        }
+        if (digs[k] < target[k]) {
+            // search found
+            atomic_inc(count);
+            for (int i = 0; i < DGST_SIZE; i++) {
+                digest[i] = digs[i];
+            }
+            nonce[0] = start_nonce;
+            break;
+        }
+    }
 }
 
