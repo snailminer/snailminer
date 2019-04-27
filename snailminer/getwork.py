@@ -79,8 +79,8 @@ class Getwork(object):
             LOG.debug('getwork result empty')
         work = {}
         work['header'] = result[0]
-        work['fruit_target'] = 2 ** 128 // int(result[2], 0)
-        work['target'] = 2 ** 128 // int(result[3], 0)
+        work['fruit_target'] = result[2]
+        work['target'] = result[3]
         work['nonce'] = self.gen_start_nonce()
 
         if self.current_work.get('header') != work['header']:

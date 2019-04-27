@@ -35,7 +35,9 @@ class OpenCLMiner(Miner):
 
     def __init__(self, work_queue=None, result_queue=None):
         super(OpenCLMiner, self).__init__(None, {})
+        self.output_size = 8
         self.defines = ''
+        self.defines += (' -DOUTPUT_SIZE=' + str(self.output_size))
         self.device = initialize()[0]
         self.device_name = self.device.name.strip('\r\n \x00\t')
         self.work_queue = work_queue
@@ -52,9 +54,7 @@ class OpenCLMiner(Miner):
         self.kernel = self.program.search
 
         self.worksize = self.kernel.get_work_group_info(cl.kernel_work_group_info.WORK_GROUP_SIZE, self.device)
-        LOG.debug('worksize %s' % self.worksize)
-
-        self.worksize = 128
+        LOG.debug('set worksize=%s' % self.worksize)
 
     def mining_thread(self):
         self.load_kernel()
@@ -110,13 +110,13 @@ class OpenCLMiner(Miner):
                 header = numpy.fromstring(bytes.fromhex(work['header'][2:]), dtype=numpy.uint8)
                 header_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=header)
                 # 16 bytes boundary for block diffculty
-                target = numpy.fromstring(work['fruit_target'].to_bytes(16, 'big'), numpy.uint8)
+                target = numpy.fromstring(bytes.fromhex(work['fruit_target'][2:]), dtype=numpy.uint8)
                 target_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=target)
                 # output nonce
-                output = numpy.zeros(2, numpy.uint64)
+                output = numpy.zeros(self.output_size, numpy.uint64)
                 output_buf = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, output.nbytes)
                 # digest
-                digest = numpy.zeros(32*2, numpy.uint8)
+                digest = numpy.zeros(32*self.output_size, numpy.uint8)
                 digest_buf = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, digest.nbytes)
                 # output count
                 count = numpy.zeros(1, numpy.uint32)
@@ -124,14 +124,13 @@ class OpenCLMiner(Miner):
 
                 start_nonce = work['nonce']
 
-            LOG.info("search kernel")
             self.kernel(queue, (self.worksize,), None, dataset_buf, header_buf, target_buf, numpy.uint64(start_nonce), output_buf, digest_buf, count_buf)
 
             cl.enqueue_copy(queue, output, output_buf)
             cl.enqueue_copy(queue, digest, digest_buf)
             cl.enqueue_copy(queue, count, count_buf)
 
-            LOG.debug("start:%s, nonce: %s, digest:%s, count:%s" % (start_nonce, output[0], digest[:32], count))
+            LOG.debug("searching start=%s, count=%s" % (start_nonce, count[0]))
             if count > 0:
                 LOG.info("search found nonce=%s", output[0])
                 # result just containing work package detail

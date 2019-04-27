@@ -6,6 +6,12 @@
 #define DGST_SIZE       32
 #define TARG_SIZE       16
 
+#define digest_copy(dest, src)   do { \
+    for (int i = 0; i < 32; ++i) { \
+        dest[i] = src[i]; \
+    } \
+} while(0)
+
 #ifndef KECCAKF_ROUNDS
 #define KECCAKF_ROUNDS 24
 #endif
@@ -439,17 +445,19 @@ __kernel void search(
     }
 #endif
 
-    for (k=0; k < TARG_SIZE; k++) {
-        if (digs[k] > target[k]) {
+    // fruit target
+    uint8_t * fruit = digs + 16;
+
+    for (k=0; k < 16; k++) {
+        if (fruit[k] > target[k]) {
             break;
         }
-        if (digs[k] < target[k]) {
+        if (fruit[k] < target[k]) {
             // search found
-            atomic_inc(count);
-            for (int i = 0; i < DGST_SIZE; i++) {
-                digest[i] = digs[i];
-            }
-            nonce[0] = start_nonce;
+            uint slot = min(OUTPUT_SIZE - 1u, atomic_inc(count));
+            __global uchar *dest = digest + slot * 32;
+            digest_copy(dest, digs);
+            nonce[slot] = start_nonce;
             break;
         }
     }
