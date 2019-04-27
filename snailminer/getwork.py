@@ -32,10 +32,10 @@ class Getwork(object):
                 "Content-Type": "application/json",
             }
             body = {
-                "jsonrpc":"2.0",
-                "method":"etrue_submitWork",
-                "params":[hex(result['found_nonce']), result['header'], result['digest']],
-                "id":0
+                "jsonrpc": "2.0",
+                "method": "etrue_submitWork",
+                "params": [hex(result['found_nonce']), result['header'], result['digest']],
+                "id": 0,
             }
             try:
                 response = await self.http_client.fetch(self.endpoint,
@@ -45,18 +45,22 @@ class Getwork(object):
                                                         body=json.dumps(body))
                 if response.code == 200:
                     resp = json.loads(response.body).get('result')
-                    LOG.info('commit result %s', resp)
+                    LOG.info('commit solution %s: ret=%s', result['header'], resp)
                 else:
                     LOG.error('http response error %s' % response.code)
             except Exception as e:
                 LOG.error('http error %s' % e)
-            self.current_work = {}
 
     async def request(self):
         headers = {
             "Content-Type": "application/json",
         }
-        body = {"jsonrpc":"2.0","method":"etrue_getWork","params":[],"id":0}
+        body = {
+            "jsonrpc": "2.0",
+            "method": "etrue_getWork",
+            "params": [],
+            "id": 0,
+        }
         try:
             response = await self.http_client.fetch(self.endpoint,
                                                     raise_error=False,
