@@ -244,7 +244,7 @@ int xor64(uint64_t val) {
 }
 
 
-int muliple(uint64_t input[32], uint64_t *prow)
+int muliple(uint64_t input[32], __global uint64_t *prow)
 {
     int r = 0;
     for (int k = 0; k < 32; k++)
@@ -257,9 +257,9 @@ int muliple(uint64_t input[32], uint64_t *prow)
 }
 
 
-int MatMuliple(uint64_t input[32], uint64_t output[32], uint64_t pmat[])
+int MatMuliple(uint64_t input[32], uint64_t output[32], __global uint64_t *pmat)
 {
-    uint64_t *prow = pmat;
+    __global uint64_t *prow = pmat;
 
     for (int k = 0; k < 2048; k++)
     {
@@ -303,9 +303,9 @@ int shift2048(uint64_t in[32], int sf)
 }
 
 
-int scramble(uint64_t *permute_in, uint64_t dataset[])
+int scramble(uint64_t *permute_in, __global uint64_t *dataset)
 {
-    uint64_t *ptbl;
+    __global uint64_t *ptbl;
     uint64_t permute_out[32] = { 0 };
 
     for (int k = 0; k < 64; k++)
@@ -341,7 +341,7 @@ int byteReverse(uint8_t sha512_out[64])
     return 0;
 }
 
-void fchainhash(uint64_t dataset[], uint8_t mining_hash[DGST_SIZE], uint64_t nonce, uint8_t digs[DGST_SIZE])
+void fchainhash(__global uint64_t *dataset, __global uint8_t *mining_hash, uint64_t nonce, uint8_t digs[])
 {
         uint8_t seed[64] = { 0 };
         uint8_t output[DGST_SIZE] = { 0 };
@@ -414,7 +414,6 @@ void fchainhash(uint64_t dataset[], uint8_t mining_hash[DGST_SIZE], uint64_t non
         // reverse byte
         for (int k = 0; k < DGST_SIZE; k++)
         {
-//          digs[k] = output[DGST_SIZE - k - 1];
             digs[k] = output[k];
         }
 }
@@ -438,7 +437,7 @@ __kernel void search(
     int found = 0;
     int k;
 
-    fchainhash((uint64_t *)g_dataset, (uint8_t *)header, start_nonce, digs);
+    fchainhash(g_dataset, header, start_nonce, digs);
 
     for (k = 0; k < 16; ++k) {
         if (fruit[k] > fruit_target[k]) {
