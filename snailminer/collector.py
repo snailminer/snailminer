@@ -22,7 +22,10 @@ class Collector(object):
                                result_queue=result_queue)
 
     def enqueue_work(self, work):
-        LOG.info("enqueue work :%s", work)
+        LOG.info("enqueue work job=%s, fruit=%s, target=%s",
+                 work['header'][:10]+'..',
+                 work['fruit_target'],
+                 work['target'])
         self.work_queue.put(work)
 
     async def run(self):

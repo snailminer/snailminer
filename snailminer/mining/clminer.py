@@ -54,7 +54,7 @@ class OpenCLMiner(Miner):
         self.kernel = self.program.search
 
         self.worksize = self.kernel.get_work_group_info(cl.kernel_work_group_info.WORK_GROUP_SIZE, self.device)
-        LOG.debug('set worksize=%s' % self.worksize)
+        LOG.info('set worksize=%s' % self.worksize)
 
     def mining_thread(self):
         self.load_kernel()
@@ -104,14 +104,22 @@ class OpenCLMiner(Miner):
                     # receive exit msg, abort the mining routine
                     break
                 self.current = work.copy()
-                LOG.info("Fetch work %s", work)
+                LOG.info("fetch work job=%s, fruit=%s, target=%s",
+                         work['header'][:10]+'..',
+                         work['fruit_target'],
+                         work['target'])
 
                 # mining header hash of 32 bytes
                 header = numpy.fromstring(bytes.fromhex(work['header'][2:]), dtype=numpy.uint8)
                 header_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=header)
                 # 16 bytes boundary for block diffculty
-                target = numpy.fromstring(bytes.fromhex(work['fruit_target'][2:]), dtype=numpy.uint8)
+                target = numpy.fromstring(bytes.fromhex(work['target'][2:]), dtype=numpy.uint8)
                 target_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=target)
+                # 16 bytes boundary for fruit diffculty
+                fruit_target = numpy.fromstring(bytes.fromhex(work['fruit_target'][2:]), dtype=numpy.uint8)
+                fruit_buf = cl.Buffer(self.context,
+                                             cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR,
+                                             hostbuf=fruit_target)
                 # output nonce
                 output = numpy.zeros(self.output_size, numpy.uint64)
                 output_buf = cl.Buffer(self.context, cl.mem_flags.WRITE_ONLY, output.nbytes)
@@ -124,7 +132,7 @@ class OpenCLMiner(Miner):
 
                 start_nonce = work['nonce']
 
-            self.kernel(queue, (self.worksize,), None, dataset_buf, header_buf, target_buf, numpy.uint64(start_nonce), output_buf, digest_buf, count_buf)
+            self.kernel(queue, (self.worksize,), None, dataset_buf, header_buf, target_buf, fruit_buf, numpy.uint64(start_nonce), output_buf, digest_buf, count_buf)
 
             cl.enqueue_copy(queue, output, output_buf)
             cl.enqueue_copy(queue, digest, digest_buf)
@@ -132,13 +140,27 @@ class OpenCLMiner(Miner):
 
             LOG.debug("searching start=%s, count=%s" % (start_nonce, count[0]))
             if count > 0:
-                LOG.info("search found nonce=%s", output[0])
                 # result just containing work package detail
-                result = self.current
-                result['digest'] = '0x' + digest[:32].tobytes().hex()
-                result['found_nonce'] = output[0]
-                self.result_queue.put(result)
-                self.current = None
+                for index in range(count[0]):
+                    result = self.current.copy()
+                    result['digest'] = '0x' + digest[index*32:(index+1)*32].tobytes().hex()
+                    result['found_nonce'] = output[index]
+                    LOG.info("search found job=%s nonce=%s digest=%s",
+                             result['header'][:10]+'..',
+                             output[index],
+                             result['digest'])
+                    self.result_queue.put(result)
+
+                # clear global output buffer
+                cl.enqueue_copy(queue, output_buf, numpy.zeros(self.output_size, numpy.uint64))
+                cl.enqueue_copy(queue, digest_buf, numpy.zeros(32*self.output_size, numpy.uint8))
+                cl.enqueue_copy(queue, count_buf, numpy.zeros(1, numpy.uint32))
+
+                _target = int(self.current['target'], 0)
+                if _target > 0 and int.from_bytes(digest[:16], "big") < _target:
+                    # Mined block
+                    LOG.info("found block digest=%s", result['digest'])
+                    self.current = None
 
             start_nonce += self.worksize
 

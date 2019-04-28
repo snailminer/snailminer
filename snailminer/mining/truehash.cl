@@ -423,6 +423,7 @@ __kernel void search(
     __global ulong *g_dataset,
     __global uchar *header,
     __global uchar *target,
+    __global uchar *fruit_target,
     ulong start_nonce,
     __global ulong *nonce,
     __global uchar *digest,
@@ -430,36 +431,42 @@ __kernel void search(
 )
 {
     uint8_t digs[DGST_SIZE] = {0};
-//  uint8 *digs = digest;
+    // fruit digest
+    uint8_t * fruit = digs + 16;
     const uint gid = get_global_id(0);
     start_nonce += gid;
+    int found = 0;
     int k;
 
     fchainhash((uint64_t *)g_dataset, (uint8_t *)header, start_nonce, digs);
 
-#if 0
-    // debug digest
-    atomic_inc(count);
-    for (int i = 0; i < DGST_SIZE; i++) {
-        digest[i] = digs[i];
+    for (k = 0; k < 16; ++k) {
+        if (fruit[k] > fruit_target[k]) {
+            break;
+        }
+        if (fruit[k] < fruit_target[k]) {
+            // fruit found
+            ++found;
+            break;
+        }
     }
-#endif
-
-    // fruit target
-    uint8_t * fruit = digs + 16;
-
-    for (k=0; k < 16; k++) {
-        if (fruit[k] > target[k]) {
+    for (k = 0; k < 16; ++k) {
+        if (digs[k] > target[k]) {
             break;
         }
-        if (fruit[k] < target[k]) {
-            // search found
-            uint slot = min(OUTPUT_SIZE - 1u, atomic_inc(count));
-            __global uchar *dest = digest + slot * 32;
-            digest_copy(dest, digs);
-            nonce[slot] = start_nonce;
+        if (digs[k] < target[k]) {
+            // block found
+            ++found;
             break;
         }
+    }
+
+    if (found > 0) {
+        // fruit or block found
+        uint slot = min(OUTPUT_SIZE - 1u, atomic_inc(count));
+        __global uchar *dest = digest + slot * 32;
+        digest_copy(dest, digs);
+        nonce[slot] = start_nonce;
     }
 }
 

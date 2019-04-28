@@ -45,7 +45,7 @@ class Getwork(object):
                                                         body=json.dumps(body))
                 if response.code == 200:
                     resp = json.loads(response.body).get('result')
-                    LOG.info('commit solution %s: ret=%s', result['header'], resp)
+                    LOG.info('commit solution job=%s ret=%s', result['header'][:10]+'..', resp)
                 else:
                     LOG.error('http response error %s' % response.code)
             except Exception as e:
@@ -80,7 +80,8 @@ class Getwork(object):
         Getwork from rpc endpoint, including header, seed, and target.
         """
         if len(result) != 4:
-            LOG.debug('getwork result empty')
+            LOG.warning('getwork result empty')
+            return
         work = {}
         work['header'] = result[0]
         work['fruit_target'] = result[2]
