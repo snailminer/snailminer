@@ -32,7 +32,7 @@ class Collector(object):
         while True:
             await self.getwork.commit_result()
             await self.getwork.request()
-            await gen.sleep(2)
+            await gen.sleep(0.5)
 
     def stop(self):
         self.work_queue.put(None)

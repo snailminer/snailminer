@@ -3,8 +3,7 @@ import os
 import sys
 import logging
 from hashlib import sha3_512, sha3_256
-from queue import Empty
-from threading import Lock
+from timeit import default_timer as timer
 
 import pyopencl as cl
 import numpy
@@ -61,6 +60,9 @@ class OpenCLMiner(Miner):
 
         dataset = minerva.table_init()
         queue = cl.CommandQueue(self.context)
+        # xor cache
+        xor16 = xor_cache()
+        cache_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=xor16)
         # epoch dataset
         dataset = numpy.array(dataset, dtype=numpy.uint64)
         dataset_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=dataset)
@@ -132,13 +134,13 @@ class OpenCLMiner(Miner):
 
                 start_nonce = work['nonce']
 
-            self.kernel(queue, (self.worksize,), None, dataset_buf, header_buf, target_buf, fruit_buf, numpy.uint64(start_nonce), output_buf, digest_buf, count_buf)
+            self.kernel(queue, (self.worksize,), None, dataset_buf, cache_buf, header_buf, target_buf, fruit_buf, numpy.uint64(start_nonce), output_buf, digest_buf, count_buf)
 
             cl.enqueue_copy(queue, output, output_buf)
             cl.enqueue_copy(queue, digest, digest_buf)
             cl.enqueue_copy(queue, count, count_buf)
 
-            LOG.debug("searching start=%s, count=%s" % (start_nonce, count[0]))
+            LOG.debug("[%s] searching start=%s, count=%s" % (timer(), start_nonce, count[0]))
             if count > 0:
                 # result just containing work package detail
                 for index in range(count[0]):
@@ -164,3 +166,15 @@ class OpenCLMiner(Miner):
 
             start_nonce += self.worksize
 
+
+def xor_cache():
+    data = numpy.zeros(2**16, numpy.uint8)
+    for index in range(2**16):
+        r = 0
+        val = index
+        for _ in range(64):
+            r ^= (val & 0x1)
+            val >>= 1
+        data[index] = r
+
+    return data

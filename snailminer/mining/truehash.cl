@@ -233,40 +233,29 @@ void shake_out(sha3_ctx_t *c, void *out, size_t len)
     c->pt = j;
 }
 
-int xor64(uint64_t val) {
-    int r  = 0;
-
-    for (int k = 0; k < 64; k++) {
-        r ^= (int)(val & 0x1);
-        val = val >> 1;
-    }
-    return r;
-}
-
-
-int muliple(uint64_t input[32], __global uint64_t *prow)
-{
-    int r = 0;
-    for (int k = 0; k < 32; k++)
-    {
-        if (input[k] != 0 && prow[k] != 0)
-                r ^= xor64(input[k] & prow[k]);
-    }
-
-    return r;
-}
-
-
-int MatMuliple(uint64_t input[32], uint64_t output[32], __global uint64_t *pmat)
+int MatMuliple(uint64_t input[32], uint64_t output[32], __global uint64_t *pmat, __constant uint8_t *cache)
 {
     __global uint64_t *prow = pmat;
 
-    for (int k = 0; k < 2048; k++)
+    for (int k = 0; k < 2048; ++k)
     {
         int k_i = k / 64;
         int k_r = k % 64;
-        unsigned int temp;
-        temp = muliple(input, prow);
+        unsigned int temp = 0;
+
+        for (int i = 0; i < 32; ++i)
+        {
+            if (prow[i] > 0 && input[i] > 0) {
+                uint64_t val = input[i] & prow[i];
+                temp ^= cache[(uint)val & 0xffff];
+                val >>= 16;
+                temp ^= cache[(uint)val & 0xffff];
+                val >>= 16;
+                temp ^= cache[(uint)val & 0xffff];
+                val >>= 16;
+                temp ^= cache[(uint)val & 0xffff];
+            }
+        }
 
         output[k_i] |= ((uint64_t)temp << k_r);
         prow += 32;
@@ -303,7 +292,7 @@ int shift2048(uint64_t in[32], int sf)
 }
 
 
-int scramble(uint64_t *permute_in, __global uint64_t *dataset)
+int scramble(uint64_t *permute_in, __global uint64_t *dataset, __constant uint8_t *cache)
 {
     __global uint64_t *ptbl;
     uint64_t permute_out[32] = { 0 };
@@ -314,7 +303,7 @@ int scramble(uint64_t *permute_in, __global uint64_t *dataset)
         sf = permute_in[0] & 0x7f;
         bs = permute_in[31] >> 60;
         ptbl = dataset + bs * 2048 * 32;
-        MatMuliple(permute_in, permute_out, ptbl);
+        MatMuliple(permute_in, permute_out, ptbl, cache);
 
         shift2048(permute_out, sf);
         for (int k = 0; k < 32; k++)
@@ -341,7 +330,7 @@ int byteReverse(uint8_t sha512_out[64])
     return 0;
 }
 
-void fchainhash(__global uint64_t *dataset, __global uint8_t *mining_hash, uint64_t nonce, uint8_t digs[])
+void fchainhash(__global uint64_t *dataset, __constant uint8_t *cache, __global uint8_t *mining_hash, uint64_t nonce, uint8_t digs[])
 {
         uint8_t seed[64] = { 0 };
         uint8_t output[DGST_SIZE] = { 0 };
@@ -385,7 +374,7 @@ void fchainhash(__global uint64_t *dataset, __global uint8_t *mining_hash, uint6
                         permute_in[k * 8 + x] = permute_in[x];
         }
 
-        scramble(permute_in, dataset);
+        scramble(permute_in, dataset, cache);
 
         uint8_t dat_in[256];
         for (int k = 0; k < 32; k++)
@@ -420,6 +409,7 @@ void fchainhash(__global uint64_t *dataset, __global uint8_t *mining_hash, uint6
 
 __kernel void search(
     __global ulong *g_dataset,
+    __constant uchar *cache,
     __global uchar *header,
     __global uchar *target,
     __global uchar *fruit_target,
@@ -437,7 +427,7 @@ __kernel void search(
     int found = 0;
     int k;
 
-    fchainhash(g_dataset, header, start_nonce, digs);
+    fchainhash(g_dataset, cache, header, start_nonce, digs);
 
     for (k = 0; k < 16; ++k) {
         if (fruit[k] > fruit_target[k]) {
