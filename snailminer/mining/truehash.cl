@@ -233,7 +233,7 @@ void shake_out(sha3_ctx_t *c, void *out, size_t len)
     c->pt = j;
 }
 
-int MatMuliple(uint64_t input[32], uint64_t output[32], __global uint64_t *pmat, __constant uint8_t *cache)
+int MatMuliple(uint64_t input[32], uint64_t output[32], __global uint64_t const *pmat, __constant uint8_t *cache)
 {
     __global uint64_t *prow = pmat;
 
@@ -292,7 +292,7 @@ int shift2048(uint64_t in[32], int sf)
 }
 
 
-int scramble(uint64_t *permute_in, __global uint64_t *dataset, __constant uint8_t *cache)
+int scramble(uint64_t *permute_in, __global uint64_t const *dataset, __constant uint8_t *cache)
 {
     __global uint64_t *ptbl;
     uint64_t permute_out[32] = { 0 };
@@ -330,7 +330,7 @@ int byteReverse(uint8_t sha512_out[64])
     return 0;
 }
 
-void fchainhash(__global uint64_t *dataset, __constant uint8_t *cache, __global uint8_t *mining_hash, uint64_t nonce, uint8_t digs[])
+void fchainhash(__global uint64_t const *dataset, __constant uint8_t *cache, __global uint8_t *mining_hash, uint64_t nonce, uint8_t digs[])
 {
         uint8_t seed[64] = { 0 };
         uint8_t output[DGST_SIZE] = { 0 };
@@ -408,7 +408,7 @@ void fchainhash(__global uint64_t *dataset, __constant uint8_t *cache, __global 
 }
 
 __kernel void search(
-    __global ulong *g_dataset,
+    __global ulong const *g_dataset,
     __constant uchar *cache,
     __global uchar *header,
     __global uchar *target,
