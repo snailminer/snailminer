@@ -52,8 +52,11 @@ class OpenCLMiner(Miner):
         self.program = cl.Program(self.context, kernel).build(self.defines)
         self.kernel = self.program.search
 
-        self.worksize = self.kernel.get_work_group_info(cl.kernel_work_group_info.WORK_GROUP_SIZE, self.device)
-        LOG.info('set worksize=%s' % self.worksize)
+        self.local_size = self.kernel.get_work_group_info(
+            cl.kernel_work_group_info.WORK_GROUP_SIZE, self.device) // 4
+        self.work_size = 64
+        self.global_size = self.work_size * self.local_size
+        LOG.info('set worksize=%s, local=%s', self.work_size, self.local_size)
 
     def mining_thread(self):
         self.load_kernel()
@@ -134,7 +137,10 @@ class OpenCLMiner(Miner):
 
                 start_nonce = work['nonce']
 
-            self.kernel(queue, (self.worksize,), None, dataset_buf, cache_buf, header_buf, target_buf, fruit_buf, numpy.uint64(start_nonce), output_buf, digest_buf, count_buf)
+            self.kernel(queue, (self.global_size,), (self.local_size,),
+                        dataset_buf, cache_buf, header_buf, target_buf,
+                        fruit_buf, numpy.uint64(start_nonce), output_buf,
+                        digest_buf, count_buf)
 
             cl.enqueue_copy(queue, output, output_buf)
             cl.enqueue_copy(queue, digest, digest_buf)
@@ -143,7 +149,7 @@ class OpenCLMiner(Miner):
             LOG.debug("[%s] searching start=%s, count=%s" % (timer(), start_nonce, count[0]))
             if count > 0:
                 # result just containing work package detail
-                for index in range(count[0]):
+                for index in range(min(self.output_size-1, count[0])):
                     result = self.current.copy()
                     result['digest'] = '0x' + digest[index*32:(index+1)*32].tobytes().hex()
                     result['found_nonce'] = output[index]
@@ -164,7 +170,7 @@ class OpenCLMiner(Miner):
                     LOG.info("found block digest=%s", result['digest'])
                     self.current = None
 
-            start_nonce += self.worksize
+            start_nonce += self.global_size
 
 
 def xor_cache():
