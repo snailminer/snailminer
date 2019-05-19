@@ -1,6 +1,7 @@
 import time
 import os
 import sys
+import pickle
 import logging
 from hashlib import sha3_512, sha3_256
 from timeit import default_timer as timer
@@ -34,9 +35,12 @@ class OpenCLMiner(Miner):
 
     def __init__(self, work_queue=None, result_queue=None):
         super(OpenCLMiner, self).__init__(None, {})
+        self.big_cache = True
         self.output_size = 8
         self.defines = ''
         self.defines += (' -DOUTPUT_SIZE=' + str(self.output_size))
+        if self.big_cache:
+            self.defines += (' -DGLOBAL_CACHE=' + str(1))
         self.device = initialize()[0]
         self.device_name = self.device.name.strip('\r\n \x00\t')
         self.work_queue = work_queue
@@ -64,7 +68,11 @@ class OpenCLMiner(Miner):
         dataset = minerva.table_init()
         queue = cl.CommandQueue(self.context)
         # xor cache
-        xor16 = xor_cache()
+        if self.big_cache:
+            with open(os.path.join(BASE_DIR, 'xor.data'), 'rb') as f:
+                xor16 = pickle.load(f)
+        else:
+            xor16 = xor_cache()
         cache_buf = cl.Buffer(self.context, cl.mem_flags.READ_ONLY | cl.mem_flags.COPY_HOST_PTR, hostbuf=xor16)
         # epoch dataset
         dataset = numpy.array(dataset, dtype=numpy.uint64)

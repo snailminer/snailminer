@@ -233,7 +233,11 @@ void shake_out(sha3_ctx_t *c, void *out, size_t len)
     c->pt = j;
 }
 
+#ifdef GLOBAL_CACHE
+int MatMuliple(uint64_t input[32], uint64_t output[32], __global uint64_t const *pmat, __global uint8_t *cache)
+#else
 int MatMuliple(uint64_t input[32], uint64_t output[32], __global uint64_t const *pmat, __constant uint8_t *cache)
+#endif
 {
     __global uint64_t *prow = pmat;
 
@@ -245,6 +249,15 @@ int MatMuliple(uint64_t input[32], uint64_t output[32], __global uint64_t const 
 
         for (int i = 0; i < 32; ++i)
         {
+
+#ifdef GLOBAL_CACHE
+            uint64_t val = input[i] & prow[i];
+            temp ^= cache[(uint)val & 0x3fffff];
+            val >>= 22;
+            temp ^= cache[(uint)val & 0x3fffff];
+            val >>= 22;
+            temp ^= cache[(uint)val & 0x3fffff];
+#else
             if (prow[i] > 0 && input[i] > 0) {
                 uint64_t val = input[i] & prow[i];
                 temp ^= cache[(uint)val & 0xffff];
@@ -255,6 +268,7 @@ int MatMuliple(uint64_t input[32], uint64_t output[32], __global uint64_t const 
                 val >>= 16;
                 temp ^= cache[(uint)val & 0xffff];
             }
+#endif
         }
 
         output[k_i] |= ((uint64_t)temp << k_r);
@@ -292,7 +306,11 @@ int shift2048(uint64_t in[32], int sf)
 }
 
 
+#ifdef GLOBAL_CACHE
+int scramble(uint64_t *permute_in, __global uint64_t const *dataset, __global uint8_t *cache)
+#else
 int scramble(uint64_t *permute_in, __global uint64_t const *dataset, __constant uint8_t *cache)
+#endif
 {
     __global uint64_t *ptbl;
     uint64_t permute_out[32] = { 0 };
@@ -330,7 +348,12 @@ int byteReverse(uint8_t sha512_out[64])
     return 0;
 }
 
+
+#ifdef GLOBAL_CACHE
+void fchainhash(__global uint64_t const *dataset, __global uint8_t *cache, __global uint8_t *mining_hash, uint64_t nonce, uint8_t digs[])
+#else
 void fchainhash(__global uint64_t const *dataset, __constant uint8_t *cache, __global uint8_t *mining_hash, uint64_t nonce, uint8_t digs[])
+#endif
 {
         uint8_t seed[64] = { 0 };
         uint8_t output[DGST_SIZE] = { 0 };
@@ -409,7 +432,11 @@ void fchainhash(__global uint64_t const *dataset, __constant uint8_t *cache, __g
 
 __kernel void search(
     __global ulong const *g_dataset,
+#ifdef GLOBAL_CACHE
+    __global uchar *cache,
+#else
     __constant uchar *cache,
+#endif
     __global uchar *header,
     __global uchar *target,
     __global uchar *fruit_target,

@@ -44,7 +44,7 @@ class Getwork(object):
                                                         method='POST',
                                                         body=json.dumps(body))
                 if response.code == 200:
-                    resp = json.loads(response.body).get('result')
+                    resp = json.loads(response.body, encoding='utf-8').get('result')
                     LOG.info('commit solution job=%s ret=%s', result['header'][:10]+'..', resp)
                 else:
                     LOG.error('http response error %s' % response.code)
@@ -68,7 +68,7 @@ class Getwork(object):
                                                     method='POST',
                                                     body=json.dumps(body))
             if response.code == 200:
-                resp = json.loads(response.body)
+                resp = json.loads(response.body, encoding='utf-8')
                 self.getwork(resp.get('result', []))
             else:
                 LOG.error('http response error %s' % response.code)
