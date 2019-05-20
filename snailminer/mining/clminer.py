@@ -3,7 +3,6 @@ import os
 import sys
 import pickle
 import logging
-from hashlib import sha3_512, sha3_256
 from timeit import default_timer as timer
 
 import pyopencl as cl

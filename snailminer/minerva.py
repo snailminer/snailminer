@@ -1,7 +1,8 @@
-from hashlib import (
-    sha3_512,
-    sha3_256
-)
+import sys
+if sys.version_info < (3, 4):
+    from sha3 import sha3_512, sha3_256
+else:
+    from hashlib import sha3_512, sha3_256
 
 from .dataset import TABLE_ORG
 import numpy as np
