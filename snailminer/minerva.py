@@ -1,5 +1,5 @@
 import sys
-if sys.version_info < (3, 4):
+if sys.version_info < (3, 6):
     from sha3 import sha3_512, sha3_256
 else:
     from hashlib import sha3_512, sha3_256
